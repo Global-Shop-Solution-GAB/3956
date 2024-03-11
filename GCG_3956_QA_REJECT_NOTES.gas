@@ -1,0 +1,111 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+'Coded by SFF 5/11/2015
+V.Local.sError.Declare(String)
+'This program gets quality notes and string together in paragraph format
+F.ODBC.Connection!conX.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+F.Intrinsic.Control.If(V.Caller.Hook,=,16090)
+	F.Intrinsic.Control.If(V.Passed.009001,=,"001552")
+		F.Intrinsic.Control.CallSub(Getnotes)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3956_QA_REJECT_NOTES.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Main.End
+
+Program.Sub.GetNotes.Start
+F.Intrinsic.Control.SetErrorHandler("GetNotes_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+V.Local.sSql.Declare(String)
+V.Local.sRet.Declare(String)
+V.Local.i.Declare(Long)
+V.Local.sTemp.Declare(String)
+V.Local.sNotes.Declare(String)
+'Get Notes from Quality for header and items and string together in paragraph format
+
+F.Intrinsic.String.Build("Select * from V_BI_REJECT where TRMNL = '{0}' and RPTID = '{1}'",V.Passed.BIP_Trmnl,V.Passed.BIP_Rptid,V.Local.sSql)
+F.ODBC.Connection!conX.OpenRecordsetRO("rst",V.Local.sSql)
+F.Intrinsic.Control.If(V.ODBC.conX!rst.EOF,<>,True)
+	F.Intrinsic.Control.DoUntil(V.ODBC.conX!rst.EOF,=,True)
+			V.Local.sNotes.Set("")
+			F.Intrinsic.String.Build("Select TEXT from v_QUALITY_NOTES where CONTROL_NUMBER = '{0}' ORDER BY NOTE_SEQ,QUAL_NOTE_SEQ",V.ODBC.conX!rst.FieldValTrim!CONTROL_NCR,V.Local.sSql)
+			F.ODBC.Connection!conX.OpenRecordsetRO("rst2",V.Local.sSql)
+			F.Intrinsic.Control.If(V.ODBC.conX!rst2.EOF,<>,True)
+				F.Intrinsic.Control.DoUntil(V.ODBC.conX!rst2.EOF,=,True)
+						F.Intrinsic.String.Build("{0}{1} ",V.Local.sNotes,V.ODBC.conX!rst2.FieldValTrim!TEXT,V.Local.sNotes)
+					F.ODBC.conX!rst2.MoveNext
+				F.Intrinsic.Control.Loop
+				F.Intrinsic.Control.If(V.Local.sNotes.Trim,<>,"")
+				F.Intrinsic.Control.AndIf(V.ODBC.conX!rst.FieldValTrim!CONTROL_NCR,<>,"")
+					F.Intrinsic.Control.CallSub(Savenotes,"NCMR",V.ODBC.conX!rst.FieldValTrim!CONTROL_NCR,"Notes",V.Local.sNotes)
+				F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.EndIf
+			F.ODBC.conX!rst2.Close
+		F.ODBC.conX!rst.MoveNext
+	F.Intrinsic.Control.Loop
+F.Intrinsic.Control.EndIf
+F.ODBC.conX!rst.Close
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("GetNotes_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3956_QA_REJECT_NOTES.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.GetNotes.End
+
+Program.Sub.SaveNotes.Start
+F.Intrinsic.Control.SetErrorHandler("SaveNotes_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSql.Declare(String)
+'Save notes to custom table after they are in paragraph format
+
+F.Intrinsic.String.Build("Delete from GCG_3956_QUAL_NOTES where CONTROL_NUMBER = '{0}'",V.Args.NCMR,V.Local.sSql)
+F.ODBC.Connection!conX.Execute(V.Local.sSql)
+F.ODBC.Connection!conX.OpenRecordsetRW("rstSave","SELECT * from GCG_3956_QUAL_NOTES")
+F.ODBC.conX!rstSave.AddNew
+F.ODBC.conX!rstSave.Set!CONTROL_NUMBER(V.Args.NCMR)
+F.ODBC.conX!rstSave.Set!NOTES(V.Args.Notes)
+F.ODBC.conX!rstSave.Update
+F.ODBC.conX!rstSave.Close
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("SaveNotes_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3956_QA_REJECT_NOTES.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.SaveNotes.End
+
+Program.Sub.Comments.Start
+${$0$}$testNCMRComments$}$SUPERVSR$}$5/11/2015
+${$3$}$0$}$$}$-1$}$-1$}$$}$1/1/1900$}$This program fires on the BI Hook when report = 1552 it gets all notes from Quality_Notes and stores them in paragraph format in one field in a custom table that will be added to the report.
+Program.Sub.Comments.End
+
